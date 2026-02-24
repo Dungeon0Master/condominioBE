@@ -11,20 +11,15 @@ return new class extends Migration
         Schema::create('usuarios', function (Blueprint $table) {
             $table->id();
             
-            // Relación con la tabla personas
-            // constrained('personas') asegura que el ID exista en la otra tabla
             $table->foreignId('id_persona')->constrained('personas')->onDelete('cascade');
             
-            // Agregamos email 
             $table->string('email')->unique();
+            $table->timestamp('email_verified_at')->nullable(); //  confirmación de correo
             
-            //  campo de contraseña 
-            $table->string('pass');
+            $table->string('pass'); // Aquí guardaremos el hash,
             
-            //  campo de administrador
             $table->boolean('admin')->default(false);
 
-            // Timestamps para saber cuándo se creó el usuario 
             $table->timestamps();
         });
     }
