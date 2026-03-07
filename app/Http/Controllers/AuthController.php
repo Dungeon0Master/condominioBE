@@ -34,8 +34,8 @@ class AuthController extends Controller
         if (!$user->hasVerifiedEmail()) {
             return response()->json(['message' => 'Verifica tu correo electrónico antes de iniciar sesión.'], 403);
         }
-
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $deviceName = $request->header('User-Agent', 'auth_token');
+        $token = $user->createToken($deviceName)->plainTextToken; 
 
         return response()->json([
             'access_token' => $token,
@@ -67,6 +67,8 @@ class AuthController extends Controller
                     'pass' => Hash::make($password),
                     'email_verified_at' => now(),
                 ])->save();
+
+                $user->tokens()->delete();
 
                 event(new PasswordReset($user));
             }
