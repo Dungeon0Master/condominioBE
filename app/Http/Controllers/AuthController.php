@@ -10,6 +10,10 @@ use Illuminate\Support\Facades\Password;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Validation\ValidationException;
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Carbon;
+
 class AuthController extends Controller
 {
 
@@ -79,5 +83,74 @@ class AuthController extends Controller
         }
 
         return response()->json(['message' => 'El enlace ha expirado o es inválido.'], 400);
+    }
+
+    // --- NUEVOS MÉTODOS PARA RECUPERACIÓN DE CONTRASEÑA ---
+
+    // 1. Solicitar el código de 6 dígitos
+    public function forgotPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|exists:usuarios,email'
+        ]);
+
+        // Generar un código numérico aleatorio de 6 dígitos
+        $code = rand(100000, 999999);
+
+        // Guardarlo en la base de datos (Hasheado por seguridad)
+        DB::table('password_reset_tokens')->updateOrInsert(
+            ['email' => $request->email],
+            [
+                'token' => Hash::make($code), 
+                'created_at' => Carbon::now()
+            ]
+        );
+
+        // Enviar el correo usando SMTP (Configurado en .env)
+        Mail::raw("Tu código de recuperación para el condominio es: $code\n\nEste código expira en 15 minutos.", function ($message) use ($request) {
+            $message->to($request->email)
+                    ->subject('Código de Recuperación de Contraseña');
+        });
+
+        return response()->json(['message' => 'Te hemos enviado un código de 6 dígitos a tu correo.']);
+    }
+
+    // 2. Validar el código y guardar la nueva contraseña
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|exists:usuarios,email',
+            'code' => 'required|numeric|digits:6',
+            'password' => 'required|min:8|confirmed'
+        ]);
+
+        // Buscar el token asociado a ese correo
+        $resetRequest = DB::table('password_reset_tokens')->where('email', $request->email)->first();
+
+        // Validar que exista y coincida el código
+        if (!$resetRequest || !Hash::check($request->code, $resetRequest->token)) {
+            return response()->json(['message' => 'El código es incorrecto o no existe.'], 400);
+        }
+
+        // Validar que el código no haya expirado (15 minutos de validez)
+        if (Carbon::now()->diffInMinutes($resetRequest->created_at) > 15) {
+            DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+            return response()->json(['message' => 'El código ha expirado. Solicita uno nuevo.'], 400);
+        }
+
+        // Actualizar contraseña del usuario
+        $user = Usuario::where('email', $request->email)->first();
+        $user->forceFill([
+            'pass' => Hash::make($request->password),
+            'email_verified_at' => now() 
+        ])->save();
+
+        // Cerrar sesión en todos los dispositivos
+        $user->tokens()->delete();
+
+        // Eliminar el código usado
+        DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+
+        return response()->json(['message' => 'Contraseña actualizada. Todas tus sesiones han sido cerradas.']);
     }
 }

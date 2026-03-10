@@ -7,10 +7,13 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ResidenteController;
 use Illuminate\Support\Facades\Broadcast;
 
-// Rutas Públicas
-// Rutas Públicas
+// --- Rutas Públicas ---
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/set-password', [AuthController::class, 'setNewPassword']);
+
+// Nuevas rutas para recuperación de contraseña
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
 
 Broadcast::routes(['middleware' => ['auth:sanctum']]);
@@ -20,7 +23,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     
     Route::post('/logout', [AuthController::class, 'logout']);
     
-
     // Rutas del Chat
     Route::get('/messages', [ChatController::class, 'index']);
     Route::post('/messages', [ChatController::class, 'store']);
